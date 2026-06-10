@@ -11,14 +11,18 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Wrangler
-        run: npm install -g wrangler
+        run: npm install -g wrangler@latest
 
       - name: Deploy to Cloudflare Pages
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
+          echo "=== Wrangler version ==="
+          wrangler --version
+          echo "=== Deploying ==="
           wrangler pages deploy . \
             --project-name=live-visitor-map \
             --branch=main \
-            --commit-dirty=true
+            --commit-dirty=true 2>&1
+          echo "=== Exit code: $? ==="
