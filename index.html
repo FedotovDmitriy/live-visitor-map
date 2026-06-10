@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>מפת מבקרים חיה</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 20px 28px;
+      border-bottom: 1px solid #1e293b;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: #0f172a;
+    }
+
+    .pulse-dot {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: #4ade80;
+      box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.7);
+      animation: pulse 2s infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(74,222,128,0.7); }
+      70%  { box-shadow: 0 0 0 10px rgba(74,222,128,0); }
+      100% { box-shadow: 0 0 0 0 rgba(74,222,128,0); }
+    }
+
+    header h1 {
+      font-size: 20px;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+
+    header p {
+      font-size: 13px;
+      color: #64748b;
+      margin-top: 1px;
+    }
+
+    .stats-bar {
+      display: flex;
+      gap: 12px;
+      padding: 16px 28px;
+      background: #0f172a;
+      border-bottom: 1px solid #1e293b;
+    }
+
+    .stat {
+      background: #1e293b;
+      border-radius: 10px;
+      padding: 10px 18px;
+      min-width: 120px;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .stat-value {
+      font-size: 26px;
+      font-weight: 700;
+      color: #f1f5f9;
+      line-height: 1.2;
+    }
+
+    .stat-value.small {
+      font-size: 14px;
+      font-weight: 500;
+      padding-top: 3px;
+    }
+
+    .main {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    #map {
+      height: calc(100vh - 130px);
+      width: 100%;
+      background: #0d1b2a;
+    }
+
+    .sidebar {
+      background: #0f172a;
+      border-right: 1px solid #1e293b;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sidebar-header {
+      padding: 16px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #94a3b8;
+      border-bottom: 1px solid #1e293b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .visitor-list {
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .visitor-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 20px;
+      border-bottom: 1px solid #1e293b;
+      transition: background 0.15s;
+      cursor: default;
+    }
+
+    .visitor-item:hover { background: #1e293b44; }
+
+    .vdot {
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .vdot.me { background: #60a5fa; box-shadow: 0 0 6px #60a5fa; }
+    .vdot.other { background: #4ade80; box-shadow: 0 0 6px #4ade80; }
+
+    .visitor-info { flex: 1; min-width: 0; }
+    .visitor-city { font-size: 13px; font-weight: 500; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .visitor-country { font-size: 11px; color: #64748b; margin-top: 1px; }
+    .visitor-time { font-size: 11px; color: #475569; flex-shrink: 0; }
+
+    .me-badge {
+      font-size: 10px;
+      background: #1e3a5f;
+      color: #60a5fa;
+      padding: 2px 8px;
+      border-radius: 999px;
+      flex-shrink: 0;
+    }
+
+    .empty-state {
+      padding: 40px 20px;
+      text-align: center;
+      color: #475569;
+      font-size: 13px;
+    }
+
+    @media (max-width: 700px) {
+      .main { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      #map { height: calc(100vh - 200px); }
+      .stats-bar { flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="pulse-dot"></div>
+  <div>
+    <h1>מפת מבקרים חיה</h1>
+    <p>כל מי שנמצא כרגע באתר מוצג על המפה</p>
+  </div>
+</header>
+
+<div class="stats-bar">
+  <div class="stat">
+    <div class="stat-label">מבקרים פעילים</div>
+    <div class="stat-value" id="stat-count">—</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">מדינות</div>
+    <div class="stat-value" id="stat-countries">—</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">המיקום שלך</div>
+    <div class="stat-value small" id="stat-me">מזהה...</div>
+  </div>
+</div>
+
+<div class="main">
+  <div id="map"></div>
+  <div class="sidebar">
+    <div class="sidebar-header">מבקרים</div>
+    <div class="visitor-list" id="visitor-list">
+      <div class="empty-state">טוען...</div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  const STORAGE_KEY = 'lvm-visitors-v1';
+  const MY_ID = 'v-' + Math.random().toString(36).slice(2, 10);
+  const REFRESH_MS = 10000;
+
+  let map, markers = {}, myData = null;
+
+  // ── KV store via Cloudflare Worker ──────────────────────────────────────
+  // Replace WORKER_URL with your deployed Worker URL after deployment
+  const WORKER_URL = typeof __WORKER_URL__ !== 'undefined' ? __WORKER_URL__ : '';
+
+  async function kvGet() {
+    if (!WORKER_URL) return null;
+    try {
+      const r = await fetch(`${WORKER_URL}/visitors`);
+      if (!r.ok) return null;
+      return await r.json();
+    } catch { return null; }
+  }
+
+  async function kvSet(data) {
+    if (!WORKER_URL) return;
+    try {
+      await fetch(`${WORKER_URL}/visitors`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+    } catch {}
+  }
+
+  // ── Fallback: localStorage for single-user demo ─────────────────────────
+  function lsGet() {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { return []; }
+  }
+  function lsSet(d) {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); } catch {}
+  }
+
+  async function loadVisitors() {
+    const remote = await kvGet();
+    if (remote) return remote;
+    return lsGet();
+  }
+
+  async function saveVisitors(visitors) {
+    await kvSet(visitors);
+    lsSet(visitors);
+  }
+
+  // ── Map init ─────────────────────────────────────────────────────────────
+  function initMap() {
+    map = L.map('map', { zoomControl: true, attributionControl: false })
+            .setView([30, 15], 2);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19, subdomains: 'abcd'
+    }).addTo(map);
+  }
+
+  function makeIcon(isMe) {
+    const color = isMe ? '#60a5fa' : '#4ade80';
+    const size = isMe ? 18 : 14;
+    return L.divIcon({
+      className: '',
+      html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};box-shadow:0 0 8px ${color};border:2px solid #0f172a;"></div>`,
+      iconSize: [size, size], iconAnchor: [size / 2, size / 2]
+    });
+  }
+
+  function updateMarkers(visitors) {
+    const ids = new Set(visitors.map(v => v.id));
+    Object.keys(markers).forEach(id => {
+      if (!ids.has(id)) { map.removeLayer(markers[id]); delete markers[id]; }
+    });
+    visitors.forEach(v => {
+      if (!markers[v.id]) {
+        markers[v.id] = L.marker([v.lat, v.lng], { icon: makeIcon(v.id === MY_ID) })
+          .bindPopup(`<b>${v.flag} ${v.city}</b><br><span style="color:#888">${v.country}</span>`)
+          .addTo(map);
+      }
+    });
+  }
+
+  function timeAgo(ts) {
+    const s = Math.floor((Date.now() - ts) / 1000);
+    if (s < 10) return 'עכשיו';
+    if (s < 60) return `לפני ${s}ש`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `לפני ${m} דק׳`;
+    return `לפני ${Math.floor(m / 60)} שע׳`;
+  }
+
+  function renderList(visitors) {
+    const el = document.getElementById('visitor-list');
+    if (!visitors.length) { el.innerHTML = '<div class="empty-state">אין מבקרים כרגע</div>'; return; }
+    const sorted = [...visitors].sort((a, b) => b.ts - a.ts);
+    el.innerHTML = sorted.map(v => `
+      <div class="visitor-item">
+        <div class="vdot ${v.id === MY_ID ? 'me' : 'other'}"></div>
+        <div class="visitor-info">
+          <div class="visitor-city">${v.flag} ${v.city}</div>
+          <div class="visitor-country">${v.country}</div>
+        </div>
+        ${v.id === MY_ID ? '<span class="me-badge">אתה</span>' : ''}
+        <span class="visitor-time">${timeAgo(v.ts)}</span>
+      </div>`).join('');
+
+    document.getElementById('stat-count').textContent = visitors.length;
+    document.getElementById('stat-countries').textContent = new Set(visitors.map(v => v.country)).size;
+  }
+
+  // ── Geo lookup ────────────────────────────────────────────────────────────
+  async function getMyLocation() {
+    try {
+      const r = await fetch('https://ipapi.co/json/');
+      const d = await r.json();
+      return {
+        city: d.city || 'עיר לא ידועה',
+        country: d.country_name || 'מדינה לא ידועה',
+        lat: d.latitude || 31.5,
+        lng: d.longitude || 34.8,
+        flag: d.country_code
+          ? String.fromCodePoint(...[...d.country_code].map(c => 127397 + c.charCodeAt()))
+          : '🌍'
+      };
+    } catch {
+      return { city: 'לא ידוע', country: 'לא ידוע', lat: 30, lng: 15, flag: '🌍' };
+    }
+  }
+
+  // ── Main loop ─────────────────────────────────────────────────────────────
+  async function tick() {
+    let visitors = await loadVisitors();
+
+    // prune visitors older than 5 min
+    const cutoff = Date.now() - 5 * 60 * 1000;
+    visitors = visitors.filter(v => v.ts > cutoff);
+
+    if (myData) {
+      const idx = visitors.findIndex(v => v.id === MY_ID);
+      const me = { ...myData, id: MY_ID, ts: Date.now() };
+      if (idx >= 0) visitors[idx] = me; else visitors.push(me);
+      await saveVisitors(visitors);
+    }
+
+    updateMarkers(visitors);
+    renderList(visitors);
+  }
+
+  async function main() {
+    initMap();
+    myData = await getMyLocation();
+    document.getElementById('stat-me').textContent = `${myData.flag} ${myData.city}`;
+    await tick();
+    setInterval(tick, REFRESH_MS);
+  }
+
+  main();
+</script>
+</body>
+</html>
